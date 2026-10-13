@@ -1,3 +1,7 @@
+<p align="center">
+<img src="Assets/UnivertLogo.png" width="500" alt="UNIVERT">
+</p>
+
 # Universal Converter
 
 Conversor universal de imágenes y documentos de escritorio. Frontend en React +
@@ -38,16 +42,6 @@ npm run verify:docs     # operaciones PDF (unir/partir) y degradación de motore
 ```bash
 npm run dist:win
 ```
-
-## Actualizaciones y donaciones
-
-- La app busca nuevas versiones en las **GitHub Releases** y las instala desde
-  Ajustes → Actualizaciones (descarga en segundo plano, aviso al terminar).
-- [docs/RELEASE.md](docs/RELEASE.md) — cómo publicar una versión.
-- [docs/SETUP-NEW-APP.md](docs/SETUP-NEW-APP.md) — replicar el modelo en cada
-  software nuevo de la organización.
-- [docs/DONACIONES.md](docs/DONACIONES.md) — plataformas de donación
-  recomendadas desde Argentina (GitHub Sponsors + Mercado Pago + Ko-fi).
 
 ## Matriz de formatos (real, verificada)
 
