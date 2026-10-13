@@ -10,6 +10,10 @@ build/
 .engines/
 *.tsbuildinfo
 
+# Motores instalados por la app (descargados en Ajustes; nunca se empaquetan)
+resources/bin/*
+!resources/bin/README.md
+
 # Entornos y secretos (aunque hoy no existan, blindamos el futuro)
 .env
 .env.*
