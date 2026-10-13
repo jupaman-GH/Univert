@@ -1,0 +1,22 @@
+# Dependencias
+node_modules/
+
+# Artefactos de build (nunca se commitean; se regeneran con npm run build/dist)
+out/
+dist/
+build/
+
+# Scratch de E2E y de empaquetado de motores (binarios de terceros)
+.engines/
+*.tsbuildinfo
+
+# Entornos y secretos (aunque hoy no existan, blindamos el futuro)
+.env
+.env.*
+
+# SO / editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/

@@ -1,0 +1,154 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(0.16 0.02 260);
+  --foreground: oklch(0.92 0.01 260);
+  --card: oklch(0.2 0.02 260);
+  --card-foreground: oklch(0.92 0.01 260);
+  --muted: oklch(0.25 0.02 260);
+  --muted-foreground: oklch(0.65 0.02 260);
+  --accent: oklch(0.28 0.04 260);
+  --accent-foreground: oklch(0.95 0.01 260);
+  --border: oklch(0.3 0.03 260);
+  --primary: oklch(0.75 0.18 195);
+  --primary-foreground: oklch(0.15 0.05 195);
+  --ring: oklch(0.75 0.18 195);
+  --destructive: oklch(0.65 0.2 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+  --radius: 0.75rem;
+  /* Color de las barras (titlebar + sidebar); sobrescrito en vivo por Ajustes. */
+  --bar-color: #0f1620;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Región arrastrable del titlebar (ventana sin marco). */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.drag-region-none {
+  -webkit-app-region: no-drag;
+}
+
+/* Efecto de vidrio esmerilado para el fondo de la ventana. */
+.glass {
+  backdrop-filter: blur(var(--window-blur, 0px));
+}
+
+/* Pulsación de iluminación para elementos activos (sigue el color de acento). */
+@keyframes glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 60%, transparent);
+  }
+}
+
+/*
+ * Brillos del color de acento: todas las variantes siguen var(--primary), que
+ * Apariencia sobrescribe en vivo, en lugar de un cian fijo en el CSS.
+ */
+/* Slider (range), barra de progreso. */
+.glow-range {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+
+/* Slider (thumb), muestras de color seleccionadas. */
+.glow-thumb {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--primary) 55%, transparent);
+}
+.glow-thumb:hover {
+  box-shadow: 0 0 16px color-mix(in srgb, var(--primary) 80%, transparent);
+}
+
+/* Botón principal. */
+.glow-btn {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 45%, transparent);
+}
+.glow-btn:hover {
+  box-shadow: 0 0 20px color-mix(in srgb, var(--primary) 65%, transparent);
+}
+
+/* Pestaña activa (el propio selector solo aplica cuando está seleccionada). */
+.glow-tab[data-state='active'] {
+  box-shadow: 0 0 10px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+.animate-glow {
+  animation: glow-pulse 2.4s ease-in-out infinite;
+}
+
+/* Aparición suave de secciones y paneles. */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in-up 0.25s ease-out;
+}
+
+/* Scrollbar acorde al tema. */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}

@@ -1,0 +1,43 @@
+# Publica una release en GitHub con el instalador NSIS + latest.yml.
+#
+# Trigger normal: push de una etiqueta v* (ver docs/RELEASE.md).
+# GH_TOKEN solo existe como secret de Actions: nunca va embebido en la app.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # --publish always creaía/actualiza la Release de la etiqueta y sube el
+      # instalador, latest.yml (lo que lee el updater) y los .blockmap.
+      - name: Package and publish release
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,41 @@
+appId: com.universalconverter.app
+productName: Universal Converter
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**/*
+  - package.json
+# sharp (libvips) debe ir fuera del ASAR para que sus binarios nativos se carguen.
+asarUnpack:
+  - '**/node_modules/sharp/**/*'
+  - '**/node_modules/@img/**/*'
+  - '**/node_modules/@resvg/resvg-js/**/*'
+# Binarios externos opcionales (Pandoc, ImageMagick, Ghostscript, LibreOffice) que el
+# usuario o un script coloquen en resources/bin; la app los detecta y si faltan degrada.
+extraResources:
+  - from: resources/bin
+    to: bin
+    filter:
+      - '**/*'
+win:
+  target:
+    - nsis
+  # Icono del ejecutable (UnivertIco.ico copiado a build/icon.ico).
+  icon: build/icon.ico
+  # TEMPORAL: el build no está firmado con Authenticode y electron-updater
+  # rechazaría el instalador descargado (verifyUpdateCodeSignature es true por
+  # defecto). Activar de vuelta al contar con certificado de firma de código.
+  verifyUpdateCodeSignature: false
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+
+# Actualizaciones: electron-builder escribe estos datos en app-update.yml dentro
+# del paquete; el updater de la app consulta las GitHub Releases de este repo
+# (latest.yml + instalador). EDITAR owner/repo al crear la organización.
+publish:
+  provider: github
+  owner: jupaman-GH
+  repo: universal-converter
