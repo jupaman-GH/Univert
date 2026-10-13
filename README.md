@@ -111,7 +111,9 @@ Todos los softwares en desarrollo serán gratuitos. La donación es la verdadera
 que cada moneda que recibe el desarrollador es por que realmente se lo merece por ser de
 manera voluntaria. GRACIAS!
 
-[![ko-fi](https://ko-fi.com)](https://ko-fi.com/friezasama)
+
+
+[![ko-fi](Assets/logomarkLogo.Png)](https://ko-fi.com/friezasama)BUY ME A COFFEE
 
 ## Licencias de binarios redistribuidos
 
