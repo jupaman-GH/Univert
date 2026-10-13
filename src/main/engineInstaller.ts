@@ -27,13 +27,51 @@ function send(progress: EngineProgress): void {
   }
 }
 
-/** Ejecuta un instalador esperando códigos de éxito (0 y 3010 = reboot pendiente). */
+/**
+ * Ejecuta un instalador esperando códigos de éxito (0 y 3010 = reboot pendiente).
+ *
+ * NSIS devuelve 2 en algunos casos benignos (p. ej. «ya instalado»); también lo
+ * aceptamos para no marcar como error una instalación que ya está completa.
+ */
 async function runInstaller(command: string, args: string[]): Promise<void> {
   try {
     await execFileAsync(command, args, { windowsHide: true, maxBuffer: 1024 * 1024 })
   } catch (error) {
     const code = (error as { code?: number | string }).code
-    if (code === 3010 || code === 0) return
+    if (code === 3010 || code === 2 || code === 0) return
+    throw error
+  }
+}
+
+/**
+ * Ejecuta un instalador EXE/MSI ELEVADO (UAC) y espera su fin.
+ *
+ * Los instaladores de Ghostscript (NSIS) y LibreOffice (MSI) piden
+ * administrador en su manifiesto: lanzarlos en plano de usuario devuelve
+ * ERROR_ELEVATION_REQUIRED. La única vía válida es `Start-Process -Verb RunAs`:
+ * Windows muestra UNA confirmación UAC; si el usuario la cancela (1223) se
+ * propaga un error claro. Se espera (`-Wait`) para no marcar «done» antes de
+ * tiempo, y se devuelve el código de salida real (`-PassThru`).
+ *
+ * `argsString` se pasa como UN solo string (sin re-comillar por PowerShell):
+ * NSIS exige `/D=<ruta>` sin comillas incluso con espacios, y msiexec acepta
+ * `/i "<ruta>"` con las comillas que nosotros mismos ponemos.
+ */
+async function runElevatedInstaller(command: string, argsString: string): Promise<void> {
+  const script =
+    `$p = Start-Process -FilePath '${command.replace(/'/g, "''")}' ` +
+    `-ArgumentList '${argsString.replace(/'/g, "''")}' -Verb RunAs -Wait -PassThru; exit $p.ExitCode`
+  try {
+    await execFileAsync('powershell.exe', ['-NoProfile', '-Command', script], {
+      windowsHide: true,
+      maxBuffer: 1024 * 1024
+    })
+  } catch (error) {
+    const code = (error as { code?: number | string }).code
+    const stderr = String((error as { stderr?: string }).stderr ?? '')
+    // 1223 = el usuario canceló el diálogo UAC.
+    if (/1223/.test(stderr)) throw new Error('Instalación cancelada (sin permiso de administrador)')
+    if (code === 3010 || code === 2 || code === 0) return
     throw error
   }
 }
@@ -113,11 +151,14 @@ export async function downloadEngine(rawId: string): Promise<{ ok: boolean; erro
     })
 
     // --- 2) Instalación ---
+    // Carpeta destino del motor en resources/bin/<id> (para archive y para los
+    // instaladores que aceptan ruta propia con /D=__INSTALL_DIR__).
+    const installDir = join(BIN_ROOT, rawId)
     if (source.kind === 'archive') {
       if (process.platform !== 'win32') {
         throw new Error('La instalación automática sólo está disponible en Windows')
       }
-      const dest = join(BIN_ROOT, id)
+      const dest = installDir
       await mkdir(dest, { recursive: true })
       // Expand-Archive viene con Windows PowerShell 5.1: sin dependencias extra.
       await execFileAsync(
@@ -130,12 +171,15 @@ export async function downloadEngine(rawId: string): Promise<{ ok: boolean; erro
         { windowsHide: true, maxBuffer: 16 * 1024 * 1024 }
       )
     } else if (source.kind === 'msi') {
-      await runInstaller('msiexec.exe', ['/i', filePath, '/quiet', '/norestart'])
+      // MSI en Program Files: también requiere elevation (UAC una sola vez).
+      await runElevatedInstaller('msiexec.exe', `/i "${filePath}" /quiet /norestart`)
     } else {
-      const args = (source.exeArgs ?? []).map((a) =>
-        a === '__FILE__' ? filePath : a
-      )
-      await runInstaller(filePath, args)
+      // `__FILE__` → instalador descargado; `__INSTALL_DIR__` → carpeta destino.
+      // NSIS exige `/D=<ruta>` SIN comillas (incluso con espacios) y al final.
+      const argsString = (source.exeArgs ?? [])
+        .map((a) => (a === '__FILE__' ? filePath : a === '__INSTALL_DIR__' ? installDir : a))
+        .join(' ')
+      await runElevatedInstaller(filePath, argsString)
     }
 
     invalidateBinary(rawId)

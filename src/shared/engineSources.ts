@@ -23,7 +23,11 @@ export type EngineSource = {
    * - `exe`: ejecutable con `exeArgs` (silencioso si el fabricante lo permite).
    */
   kind: 'archive' | 'msi' | 'exe'
-  /** Argumentos para kind='exe' (`__FILE__` se sustituye por la ruta descargada). */
+  /**
+   * Argumentos para kind='exe'. Tokens: `__FILE__` → ruta del instalador
+   * descargado; `__INSTALL_DIR__` → carpeta destino `resources/bin/<id>`
+   * (el instalador NSIS la recibe con `/D=`, sin comillas, como último arg).
+   */
   exeArgs?: string[]
 }
 
@@ -40,7 +44,10 @@ const BASE =
 export const ENGINE_SOURCES: Record<EngineId, EngineSource> = {
   pandoc: { fileName: 'pandoc.zip', kind: 'archive' },
   magick: { fileName: 'imagemagick.zip', kind: 'archive' },
-  gs: { fileName: 'ghostscript.zip', kind: 'archive' },
+  // Ghostscript: instalador NSIS oficial (no hay zip portátil oficial).
+  // `/S` silencioso y `/D=` instala sin administrador en resources/bin/gs
+  // (buscado por findBinary en subcarpetas: gs/bin/gswin64c.exe).
+  gs: { fileName: 'ghostscript.exe', kind: 'exe', exeArgs: ['/S', '/D=__INSTALL_DIR__'] },
   // LibreOffice no tiene forma portátil oficial razonable (~350 MB); se instala
   // en silencio. Windows pedirá una sola confirmación UAC (instalación en
   // Program Files), que es un límite del sistema operativo.
