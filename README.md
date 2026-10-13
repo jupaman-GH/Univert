@@ -104,6 +104,15 @@ límites de tiempo.
   permite desenfocar el escritorio detrás de la ventana sin técnicas nativas.
 - El soporte real de HEIC/RAW/AI depende del build de ImageMagick que se empaquete.
 
+## Donaciones
+
+Estoy desarrollando varios softwares mas que intentan facilitar la vida diaria de cada uno.
+Todos los softwares en desarrollo serán gratuitos. La donación es la verdadera forma de
+que cada moneda que recibe el desarrollador es por que realmente se lo merece por ser de
+manera voluntaria. GRACIAS!
+
+[![ko-fi](https://ko-fi.com)](https://ko-fi.com/friezasama)
+
 ## Licencias de binarios redistribuidos
 
 Si empaquetas los binarios opcionales en `resources/bin`, incluye sus licencias:
