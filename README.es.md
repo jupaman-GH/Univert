@@ -34,6 +34,14 @@ requiere software de terceros instalado para los formatos principales.
 - Interfaz oscura con animaciones y ajuste en vivo de **transparencia, color y
   blur** de la ventana.
 
+## Capturas
+
+<p align="center">
+  <img src="Assets/screenshot-convert.png" width="720" alt="Sección Convertir: imágenes y documentos en un mismo flujo">
+  <br><br>
+  <img src="Assets/screenshot-settings.png" width="720" alt="Ajustes: formatos por defecto y comportamiento de cierre">
+</p>
+
 ## Motores: qué incluye la app y qué puedes agregar desde Ajustes
 
 Toda la matriz de formatos de abajo funciona desde el primer arranque para los

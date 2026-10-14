@@ -32,6 +32,14 @@ required for the main formats.
 - Dark-themed UI with animations and live **transparency, color and blur**
   adjustment.
 
+## Screenshots
+
+<p align="center">
+  <img src="Assets/screenshot-convert.png" width="720" alt="Convert section: images and documents in one flow">
+  <br><br>
+  <img src="Assets/screenshot-settings.png" width="720" alt="Settings: default formats and close behavior">
+</p>
+
 ## Engines: what's included and what you can add yourself
 
 Everything in the format matrix below works out of the box for the main
