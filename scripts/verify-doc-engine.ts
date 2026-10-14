@@ -61,7 +61,10 @@ async function main(): Promise<void> {
       if (s.size <= 0) record(`parte válida ${part.outputPath}`, false)
     }
 
-    // Motor de conversiones con binario ausente → MOTOR_MISSING (degradación elegante)
+    // md → docx: entrada real; con pandoc debe convertir y sin él debe
+    // degradar a MOTOR_MISSING (las dos ramas del check).
+    const { writeFile: writeFileFixture } = await import('fs/promises')
+    await writeFileFixture(join(dir, 'a.md'), '# Hola\n\nParagraph de prueba para pandoc.\n')
     try {
       await convertDocument({ inputPath: join(dir, 'a.md'), targetFormat: 'docx' })
       // Si pandoc está instalado en esta máquina, la conversión puede funcionar; lo registramos.
@@ -82,6 +85,31 @@ async function main(): Promise<void> {
     } catch (error) {
       const msg = String(error)
       record('pdf→png sin gs → MOTOR_MISSING', msg.includes('MOTOR_MISSING'), msg.slice(0, 60))
+    }
+
+    // Documento → PDF (Pandoc + wkhtmltopdf, motor PDF opcional de Ajustes)
+    const { findBinary } = await import('../src/main/binaries')
+    const { documentTargets } = await import('../src/main/docConverter')
+    const hasPdfEngine = Boolean(
+      (await findBinary('pandoc')) && (await findBinary('wkhtmltopdf'))
+    )
+    const mdTargets = await documentTargets('md')
+    record(
+      "md ofrece 'pdf' como destino ⇔ motores PDF presentes",
+      mdTargets.includes('pdf') === hasPdfEngine,
+      `pdfEnDestinos=${mdTargets.includes('pdf')} motores=${hasPdfEngine}`
+    )
+    try {
+      const pdfOut = await convertDocument({ inputPath: join(dir, 'a.md'), targetFormat: 'pdf' })
+      const generated = await PDFDocument.load(await readFile(pdfOut.outputPath))
+      record(
+        'md→pdf (motores presentes) produce un PDF válido',
+        hasPdfEngine && generated.getPageCount() >= 1 && pdfOut.sizeBytes > 0,
+        `${generated.getPageCount()} pág · ${pdfOut.sizeBytes} B`
+      )
+    } catch (error) {
+      const msg = String(error)
+      record('md→pdf sin motor PDF → MOTOR_MISSING', msg.includes('MOTOR_MISSING'), msg.slice(0, 70))
     }
   } finally {
     for (let attempt = 1; attempt <= 5; attempt += 1) {

@@ -15,6 +15,9 @@ export function TitleBar(): React.JSX.Element {
       <span className="flex items-center gap-2">
         <img src={titlebarLogo} alt="" className="h-5 w-5 object-contain" />
         <span className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+          Univert
+        </span>
+        <span className="text-[10px] tracking-wide text-muted-foreground/50">
           Universal Converter
         </span>
       </span>

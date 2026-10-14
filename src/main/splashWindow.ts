@@ -33,11 +33,19 @@ const SPLASH_HTML = `<!doctype html>
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 34px;
+    gap: 20px;
   }
   .logo {
     width: 190px;
     height: auto;
+    animation: fade-in 0.45s ease-out;
+  }
+  .sub {
+    margin-top: -10px;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 10px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
     animation: fade-in 0.45s ease-out;
   }
   .track {
@@ -67,7 +75,8 @@ const SPLASH_HTML = `<!doctype html>
 </head>
 <body>
   <div class="wrap">
-    <img class="logo" src="${SPLASH_LOGO_DATA_URI}" alt="Universal Converter" />
+    <img class="logo" src="${SPLASH_LOGO_DATA_URI}" alt="Univert" />
+    <div class="sub">Universal Converter</div>
     <div class="track"><div class="fill"></div></div>
   </div>
 </body>

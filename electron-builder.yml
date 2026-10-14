@@ -1,5 +1,5 @@
 appId: com.universalconverter.app
-productName: Universal Converter
+productName: Univert
 directories:
   buildResources: build
   output: dist
@@ -18,9 +18,16 @@ extraResources:
     to: bin
     filter:
       - '**/*'
+  # Icono para la bandeja del sistema (Tray); en desarrollo se lee de build/.
+  - from: build/icon.ico
+    to: icon.ico
 win:
   target:
     - nsis
+    # Versión portable (un .exe autocontenido) y ZIP con la app suelta,
+    # para distribuir sin instalador.
+    - portable
+    - zip
   # Icono del ejecutable (UnivertIco.ico copiado a build/icon.ico).
   icon: build/icon.ico
   # TEMPORAL: el build no está firmado con Authenticode y electron-updater

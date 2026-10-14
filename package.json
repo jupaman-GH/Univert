@@ -1,7 +1,7 @@
 {
   "name": "universal-converter",
-  "productName": "Universal Converter",
-  "version": "0.1.0",
+  "productName": "Univert",
+  "version": "1.0.1",
   "description": "Conversor universal de imágenes y documentos",
   "main": "out/main/index.js",
   "license": "MIT",
@@ -20,6 +20,7 @@
     "verify:images": "tsx scripts/verify-image-engine.ts",
     "verify:docs": "tsx scripts/verify-doc-engine.ts",
     "verify:batch": "tsx scripts/verify-batch.ts",
+    "verify:ctxmenu": "tsx scripts/verify-ctxmenu.ts",
     "dist:win": "electron-vite build && electron-builder --win",
     "release:win": "npm run typecheck && electron-vite build && electron-builder --win --publish always"
   },

@@ -1,6 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { convertImage } from './imageConverter'
-import { convertDocument } from './docConverter'
+import { convertDocument, detectDocumentFormat } from './docConverter'
 import type {
   BatchItemStatus,
   BatchOptions,
@@ -46,18 +46,20 @@ async function convertOne(
   item: BatchOptions['items'][number],
   options: BatchOptions
 ): Promise<{ outputPath: string }> {
-  if (options.kind === 'imagenes') {
-    const result = await convertImage({
+  // El tipo se decide POR ARCHIVO: un lote puede mezclar imágenes y
+  // documentos (la sección Convertir es única y admite ambos).
+  if (detectDocumentFormat(item.inputPath)) {
+    const result = await convertDocument({
       inputPath: item.inputPath,
-      targetFormat: (item.targetFormat ?? options.targetFormat) as ImageFormat,
-      quality: options.quality,
+      targetFormat: (item.targetFormat ?? options.targetFormat) as never,
       outputDir: options.outputDir
     })
     return { outputPath: result.outputPath }
   }
-  const result = await convertDocument({
+  const result = await convertImage({
     inputPath: item.inputPath,
-    targetFormat: (item.targetFormat ?? options.targetFormat) as never,
+    targetFormat: (item.targetFormat ?? options.targetFormat) as ImageFormat,
+    quality: options.quality,
     outputDir: options.outputDir
   })
   return { outputPath: result.outputPath }

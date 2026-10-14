@@ -1,5 +1,5 @@
 import { basename, dirname, extname, join } from 'path'
-import { access, readFile, stat, writeFile } from 'fs/promises'
+import { access, readFile, rm, stat, writeFile } from 'fs/promises'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { PDFDocument } from 'pdf-lib'
@@ -15,11 +15,13 @@ const execFileAsync = promisify(execFile)
  *
  * - Operaciones PDF estructurales (unir/partir/crear): `pdf-lib` (JS puro, sin binario).
  * - Conversiones de texto/marcado (md, html, txt, rtf, docx, odt, epub): Pandoc (binario).
+ * - Documento → PDF: Pandoc compone un HTML intermedio y `wkhtmltopdf` lo
+ *   rinde a PDF (motor PDF opcional de Ajustes → Motores).
  * - PDF → imagen: Ghostscript (binario).
- * - Faltan LibreOffice (ofimática) y binarios → se degrada con MOTOR_MISSING.
+ * - Faltan binarios → se degrada con MOTOR_MISSING.
  */
 
-const DOC_EXTENSIONS: Record<string, DocumentFormat> = {
+export const DOC_EXTENSIONS: Record<string, DocumentFormat> = {
   '.pdf': 'pdf',
   '.docx': 'docx',
   '.odt': 'odt',
@@ -56,6 +58,8 @@ export async function documentTargets(source: DocumentFormat): Promise<DocumentF
     for (const format of PANDOC_FORMATS) {
       if (format !== source) targets.push(format)
     }
+    // PDF como destino: Pandoc compone el HTML y wkhtmltopdf lo rinde.
+    if (await findBinary('wkhtmltopdf')) targets.push('pdf')
   }
   if (source === 'pdf' && gs) {
     targets.push('png')
@@ -182,6 +186,46 @@ export async function convertDocument(options: ConvertDocOptions): Promise<Conve
     const actual = `${prefix}-001.png`
     const s = await stat(actual)
     return { outputPath: actual, sizeBytes: s.size, durationMs: performance.now() - startedAt }
+  }
+
+  // Documento → PDF: Pandoc (origen → HTML) + wkhtmltopdf (HTML → PDF).
+  if (targetFormat === 'pdf') {
+    const pandocPdf = await findBinary('pandoc')
+    const wkhtmltopdf = await findBinary('wkhtmltopdf')
+    if (!pandocPdf) throw new Error('MOTOR_MISSING: Pandoc no está instalado (Fase 4)')
+    if (!wkhtmltopdf) {
+      throw new Error(
+        'MOTOR_MISSING: el motor PDF (wkhtmltopdf) no está instalado (Ajustes → Motores → Motor PDF)'
+      )
+    }
+    const fromFlagPdf = sourceFormat === 'md' ? 'markdown' : sourceFormat
+    // HTML intermedio junto al destino (se borra siempre; las imágenes del
+    // documento se extraen a un medio temporal que wkhtmltopdf referencia).
+    const tmpHtml = outputPath.replace(/\.pdf$/i, '') + '.tmp.html'
+    const mediaDir = tmpHtml + '-media'
+    try {
+      await execFileAsync(pandocPdf, [
+        inputPath,
+        '-f',
+        fromFlagPdf,
+        '-t',
+        'html',
+        '-s',
+        '--extract-media',
+        mediaDir,
+        '-o',
+        tmpHtml
+      ])
+      await execFileAsync(wkhtmltopdf, ['--enable-local-file-access', tmpHtml, outputPath], {
+        windowsHide: true,
+        maxBuffer: 32 * 1024 * 1024
+      })
+      const s = await stat(outputPath)
+      return { outputPath, sizeBytes: s.size, durationMs: performance.now() - startedAt }
+    } finally {
+      await rm(tmpHtml, { force: true }).catch(() => undefined)
+      await rm(mediaDir, { recursive: true, force: true }).catch(() => undefined)
+    }
   }
 
   // Resto: Pandoc.

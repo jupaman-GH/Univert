@@ -55,17 +55,20 @@ export type ConvertImageResponse =
   | { ok: false; error: ConversionError }
 
 /** Formatos de documento soportados. */
-export type DocumentFormat =
-  | 'pdf'
-  | 'docx'
-  | 'odt'
-  | 'rtf'
-  | 'txt'
-  | 'md'
-  | 'html'
-  | 'epub'
-  | 'csv'
-  | 'png'
+export const DOCUMENT_FORMATS = [
+  'pdf',
+  'docx',
+  'odt',
+  'rtf',
+  'txt',
+  'md',
+  'html',
+  'epub',
+  'csv',
+  'png'
+] as const
+
+export type DocumentFormat = (typeof DOCUMENT_FORMATS)[number]
 
 export type ConvertDocOptions = {
   inputPath: string
@@ -87,6 +90,17 @@ export type DocConvertResponse =
 
 /** Modalidad de conversión por lotes (Fase 5). */
 export type BatchMode = 'single-format' | 'per-file'
+
+/**
+ * Formatos por defecto de conversión (Ajustes → General).
+ * `null` = sin preferencia: la UI elige el primer formato disponible de cada
+ * archivo. La preselección se aplica al cargar archivos en la sección
+ * Convertir (incluidos los del menú contextual del Explorador).
+ */
+export type DefaultFormats = {
+  image: ImageFormat | null
+  document: DocumentFormat | null
+}
 
 /** Unidad de trabajo de un lote. */
 export type BatchItem = {
@@ -145,7 +159,42 @@ export type UpdaterState =
   | { status: 'inactive'; reason: 'development' | 'disabled' }
 
 /**
- * Progreso de la descarga/instalación de un motor externo (Ajustes → General).
+ * Parámetros del menú contextual del Explorador de Windows.
+ * Se persisten por IPC (Ajustes); `enabled` gobierna las claves que el
+ * proceso main registra en el Explorador.
+ *
+ * El menú es un único verbo «Convertir con Univert» (simple, sin submenú):
+ * al invocarlo la app se abre con los archivos cargados y la conversión se
+ * elige en la interfaz (con el formato por defecto de Ajustes preseleccionado).
+ */
+export type ContextMenuSettings = {
+  /** Registra (o borra) el menú en el Explorador al hacer sync. */
+  enabled: boolean
+}
+
+/** Snapshot del menú contextual para la tarjeta de Ajustes. */
+export type ContextMenuStatus = {
+  settings: ContextMenuSettings
+  /** Solo Windows soporta el menú (en otras plataformas la tarjeta no se muestra). */
+  supported: boolean
+  /** false en desarrollo: el registro debe apuntar al ejecutable empaquetado. */
+  packaged: boolean
+}
+
+/**
+ * Petición que llega de la línea de comandos al abrir la app desde el menú
+ * contextual. El proceso main **fusiona** las invocaciones que llegan en la
+ * ventana de ~500 ms (Explorer lanza un proceso por archivo seleccionado) y
+ * el renderer la consume por `ctxmenu:onRequest`/`ctxmenu:drain` abriendo la
+ * sección Convertir con todos los archivos ya cargados.
+ */
+export type ContextMenuRequest =
+  | { action: 'convert'; paths: string[] }
+  /** Aviso para el renderer (toast de error). */
+  | { action: 'notice'; message: string }
+
+/**
+ * Estado de la descarga/instalación de un motor externo (Ajustes → General).
  * Emitido por el proceso main durante `engine:download`.
  */
 export type EngineProgress = {

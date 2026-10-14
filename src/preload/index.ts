@@ -3,6 +3,10 @@ import type {
   BatchOptions,
   BatchProgress,
   BatchSummary,
+  ContextMenuRequest,
+  ContextMenuSettings,
+  ContextMenuStatus,
+  DefaultFormats,
   EngineProgress,
   ConvertDocOptions,
   ConvertDocResult,
@@ -50,8 +54,8 @@ const api = {
       ipcRenderer.invoke('images:targets', filePath)
   },
   dialog: {
-    pickFiles: (kind: 'imagenes' | 'documentos'): Promise<string[]> =>
-      ipcRenderer.invoke('dialog:pick-files', kind)
+    /** Selector unificado: imágenes y documentos compatibles a la vez. */
+    pickFiles: (): Promise<string[]> => ipcRenderer.invoke('dialog:pick-files')
   },
   /** Resuelve la ruta en disco de un File soltado por drag & drop. */
   dnd: {
@@ -71,6 +75,18 @@ const api = {
   },
   binaries: {
     status: (): Promise<Record<string, boolean>> => ipcRenderer.invoke('binaries:status')
+  },
+  /** Formatos por defecto (Ajustes): preselección en la sección Convertir. */
+  defaults: {
+    get: (): Promise<DefaultFormats> => ipcRenderer.invoke('defaults:get'),
+    set: (patch: Partial<DefaultFormats>): Promise<DefaultFormats> =>
+      ipcRenderer.invoke('defaults:set', patch)
+  },
+  /** Comportamiento de la ✕ de la ventana (bandeja vs cierre real). */
+  behavior: {
+    get: (): Promise<{ trayOnClose: boolean }> => ipcRenderer.invoke('close:get'),
+    set: (patch: { trayOnClose: boolean }): Promise<{ trayOnClose: boolean }> =>
+      ipcRenderer.invoke('close:set', patch)
   },
   /** Descarga integrada de motores externos (sin abrir el navegador). */
   engines: {
@@ -100,6 +116,22 @@ const api = {
       const listener = (_e: Electron.IpcRendererEvent, next: UpdaterState): void => callback(next)
       ipcRenderer.on('updater:state-changed', listener)
       return () => ipcRenderer.removeListener('updater:state-changed', listener)
+    }
+  },
+  /** Menú contextual del Explorador: parámetros + alta/baja en caliente. */
+  ctxmenu: {
+    /** Snapshot: ajustes + si la plataforma es soportada y si es build empaquetado. */
+    status: (): Promise<ContextMenuStatus> => ipcRenderer.invoke('ctxmenu:status'),
+    /** Aplica un parche parcial de ajustes y devuelve el estado resultante. */
+    set: (patch: Partial<ContextMenuSettings>): Promise<ContextMenuSettings> =>
+      ipcRenderer.invoke('ctxmenu:set', patch),
+    /** Peticiones emitidas por el main que aún no se han consumido (frío/caliente). */
+    drain: (): Promise<ContextMenuRequest[]> => ipcRenderer.invoke('ctxmenu:drain'),
+    /** Señal de que hay peticiones nuevas; consumirlas con `drain()`. */
+    onRequest: (callback: () => void): (() => void) => {
+      const listener = (): void => callback()
+      ipcRenderer.on('ctxmenu:request', listener)
+      return () => ipcRenderer.removeListener('ctxmenu:request', listener)
     }
   },
   batch: {

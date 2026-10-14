@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage } from 'electron'
 import { join } from 'path'
 import {
   availableImageTargets,
@@ -25,8 +25,24 @@ import {
 } from './updater'
 import { createSplashWindow, SPLASH_MAX_MS } from './splashWindow'
 import { cancelEngineDownload, downloadEngine, initEngineInstaller } from './engineInstaller'
-import type { BatchOptions } from '../shared/types'
-import type { ConvertImageOptions, ConvertImageResponse, ConvertDocOptions } from '../shared/types'
+import {
+  contextMenuSettings,
+  parseContextArgv,
+  saveContextMenuSettings,
+  setContextMenuLocale,
+  syncContextMenu,
+  SUPPORTED_EXTENSIONS
+} from './contextMenu'
+import { defaultFormats, saveDefaultFormats } from './defaults'
+import { closeBehavior, saveCloseBehavior } from './closeBehavior'
+import type {
+  BatchOptions,
+  ContextMenuRequest,
+  ContextMenuSettings,
+  ConvertImageOptions,
+  ConvertImageResponse,
+  ConvertDocOptions
+} from '../shared/types'
 
 export type WindowAppearance = {
   /** Opacidad del fondo de la ventana, 0 (totalmente transparente) a 1 (opaco). */
@@ -47,42 +63,26 @@ const DEFAULT_APPEARANCE: WindowAppearance = {
   blur: 0
 }
 
+// Instancia única (Fase C): si ya hay una instancia abierta —doble lanzamiento
+// manual u opción del menú contextual—, esta sale y la otra se trae al frente.
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) app.quit()
+
 let mainWindow: BrowserWindow | null = null
 let splashWindow: BrowserWindow | null = null
-let splashTimer: NodeJS.Timeout | null = null
-
-/** Un cierre real (app.quit / apagado del sistema) está en marcha. */
+let splashTimer: NodeJS.Timeout | null = null/** Un cierre real (app.quit / apagado del sistema) está en marcha. */
 let isQuitting = false
-/** Evita abrir dos diálogos de cierre a la vez. */
-let closePromptOpen = false
+/** Icono de bandeja del sistema (una sola instancia). */
+let tray: Tray | null = null
 
 type AppLocale = 'es' | 'en'
 /** Idioma elegido en la UI, comunicado por el renderer (null = idioma del sistema). */
 let rendererLocale: AppLocale | null = null
 
-/** Textos del diálogo de cierre (nativo, vive en el proceso principal). */
-const CLOSE_STRINGS: Record<
-  AppLocale,
-  { title: string; message: string; detail: string; close: string; minimize: string; cancel: string }
-> = {
-  es: {
-    title: 'Universal Converter',
-    message: '¿Cerrar o minimizar?',
-    detail:
-      'Si minimizas, Universal Converter sigue en la barra de tareas y puedes volver a ella cuando quieras.',
-    close: 'Cerrar aplicación',
-    minimize: 'Minimizar a la barra de tareas',
-    cancel: 'Cancelar'
-  },
-  en: {
-    title: 'Universal Converter',
-    message: 'Close or minimize?',
-    detail:
-      'If you minimize, Universal Converter stays in the taskbar and you can come back to it anytime.',
-    close: 'Close application',
-    minimize: 'Minimize to taskbar',
-    cancel: 'Cancel'
-  }
+/** Textos del menú de la bandeja del sistema (viven en el proceso principal). */
+const TRAY_STRINGS: Record<AppLocale, { open: string; quit: string }> = {
+  es: { open: 'Abrir Univert', quit: 'Salir' },
+  en: { open: 'Open Univert', quit: 'Quit' }
 }
 
 /** Idioma para los diálogos nativos: el de la UI si ya se conoce, si no el del sistema. */
@@ -109,36 +109,109 @@ function closeSplash(): void {
   }
 }
 
-function promptClose(): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return
-  closePromptOpen = true
-  const s = CLOSE_STRINGS[dialogLocale()]
-  dialog
-    .showMessageBox(mainWindow, {
-      type: 'question',
-      buttons: [s.close, s.minimize, s.cancel],
-      defaultId: 0,
-      cancelId: 2,
-      title: s.title,
-      message: s.message,
-      detail: s.detail,
-      noLink: true
-    })
-    .then(({ response }) => {
-      closePromptOpen = false
-      if (response === 0) {
-        // Cerrar de verdad: desbloqueamos el evento 'close' y salimos.
-        isQuitting = true
-        app.quit()
-      } else if (response === 1 && mainWindow && !mainWindow.isDestroyed()) {
-        // Minimizar a la barra de tareas: la app sigue en segundo plano.
-        mainWindow.minimize()
+/** Ruta al icono de bandeja (.ico empaquetado en resources; en dev, build/). */
+function trayIconPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'icon.ico')
+    : join(app.getAppPath(), 'build', 'icon.ico')
+}
+
+/** Muestra (y enfoca) la ventana principal; la recrea si ya se cerró. */
+function showMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow()
+    return
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+/** Reconstruye el menú de la bandeja en el idioma vigente. */
+function updateTrayMenu(): void {
+  if (!tray) return
+  const s = TRAY_STRINGS[dialogLocale()]
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: s.open, click: () => showMainWindow() },
+      { type: 'separator' },
+      {
+        label: s.quit,
+        click: () => {
+          // Salida real: desbloquea el evento 'close' y termina el proceso.
+          isQuitting = true
+          app.quit()
+        }
       }
-      // Cancelar (botón o Esc): la ventana simplemente se queda abierta.
-    })
-    .catch(() => {
-      closePromptOpen = false
-    })
+    ])
+  )
+}
+
+/** Icono permanente en la bandeja: abrir con clic doble, salir del menú. */
+function createTray(): void {
+  if (tray) return
+  const icon = nativeImage.createFromPath(trayIconPath())
+  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon)
+  tray.setToolTip('Univert')
+  updateTrayMenu()
+  tray.on('click', () => showMainWindow())
+  tray.on('double-click', () => showMainWindow())
+}
+
+// --- Fase C: peticiones del menú contextual (instancia única + fusión) ------
+
+/** Ventana de fusión: Explorer lanza un proceso por archivo seleccionado (§4.4). */
+const CTX_MERGE_MS = 500
+
+/** Rutas entrantes esperando a la ventana de fusión (una sola petición). */
+let pendingCtxPaths: string[] = []
+let pendingCtxTimer: NodeJS.Timeout | null = null
+/** Peticiones emitidas que el renderer aún no ha drenado (arranque en frío). */
+let undrainedCtxRequests: ContextMenuRequest[] = []
+
+function emitCtxRequest(request: ContextMenuRequest): void {
+  // Buffer: el renderer la drena al montar aunque llegaran antes de suscribirse.
+  undrainedCtxRequests.push(request)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('ctxmenu:request')
+  }
+}
+
+/** Muestra y enfoca la ventana principal (segunda instancia / menú contextual). */
+function focusMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+/**
+ * Fusiona las invocaciones entrantes en una ventana de ~500 ms: Explorer
+ * lanza un proceso por cada archivo seleccionado y la app debe abrirse UNA
+ * sola vez con todos ellos (la conversión se elige en la interfaz).
+ */
+function enqueueContextRequest(request: ContextMenuRequest): void {
+  if (request.action === 'notice') {
+    emitCtxRequest(request)
+    return
+  }
+  pendingCtxPaths = [...new Set([...pendingCtxPaths, ...request.paths])]
+  if (pendingCtxTimer) clearTimeout(pendingCtxTimer)
+  pendingCtxTimer = setTimeout(() => {
+    pendingCtxTimer = null
+    const paths = pendingCtxPaths
+    pendingCtxPaths = []
+    if (paths.length > 0) emitCtxRequest({ action: 'convert', paths })
+  }, CTX_MERGE_MS)
+}
+
+if (hasSingleInstanceLock) {
+  // Segunda instancia: fusiona su argv (una opción del menú) y trae la ventana.
+  app.on('second-instance', (_event, argv) => {
+    const request = parseContextArgv(argv)
+    if (request) enqueueContextRequest(request)
+    focusMainWindow()
+  })
 }
 
 function createWindow(): void {
@@ -174,12 +247,15 @@ function createWindow(): void {
   })
 
   // Toda vía de cierre (la ✕ del titlebar, Alt+F4, «Cerrar» del menú de la
-  // barra de tareas) pasa por la pregunta: ¿cerrar o minimizar?
+  // barra de tareas) respeta el comportamiento elegido en Ajustes:
+  // - bandeja (por defecto): la ventana se oculta y la app sigue viva;
+  // - cerrar: salida real (window-all-closed → app.quit).
   mainWindow.on('close', (event) => {
     if (isQuitting) return // salida real en curso: dejamos cerrar sin preguntar
-    event.preventDefault()
-    if (closePromptOpen) return // ya hay un diálogo abierto
-    promptClose()
+    if (closeBehavior().trayOnClose) {
+      event.preventDefault()
+      mainWindow?.hide()
+    }
   })
 
   mainWindow.on('closed', () => {
@@ -242,7 +318,18 @@ function registerIpc(): void {
   ipcMain.handle('app:get-version', () => app.getVersion())
   // Idioma de la UI para los diálogos nativos (el de cierre).
   ipcMain.on('app:set-locale', (_event, locale: unknown) => {
-    if (locale === 'es' || locale === 'en') rendererLocale = locale
+    if (locale !== 'es' && locale !== 'en') return
+    rendererLocale = locale
+    // El menú de la bandeja se traduce al mismo idioma que la UI.
+    updateTrayMenu()
+    // Los MUIVerb del menú contextual se registran en el idioma de la UI:
+    // si cambia, se reescriben las claves (§4.3; no-op fuera de Windows
+    // empaquetado y sin cambios reales de idioma).
+    if (setContextMenuLocale(locale)) {
+      syncContextMenu(contextMenuSettings()).catch((error) =>
+        console.error('[menú contextual] re-registro tras cambio de idioma:', error)
+      )
+    }
   })
   ipcMain.handle('window:set-appearance', (_event, appearance: WindowAppearance) => {
     applyAppearance(appearance)
@@ -308,16 +395,17 @@ function registerIpc(): void {
     typeof filePath === 'string' && filePath.length > 0 ? availableImageTargets(filePath) : []
   )
 
-  // Selector de archivos por tipo (imágenes o documentos) para las secciones.
-  ipcMain.handle('dialog:pick-files', async (_event, kind: unknown) => {
+  // Selector unificado: imágenes y documentos a la vez (sección Convertir).
+  ipcMain.handle('dialog:pick-files', async () => {
     if (!mainWindow) return []
-    const filters =
-      kind === 'documentos'
-        ? [{ name: 'Documentos', extensions: ['pdf', 'docx', 'odt', 'rtf', 'txt', 'md', 'html', 'epub', 'csv'] }]
-        : [{ name: 'Imágenes', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'tif', 'tiff', 'gif', 'bmp', 'ico', 'heic', 'raw', 'svg'] }]
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile', 'multiSelections'],
-      filters
+      filters: [
+        {
+          name: 'Imágenes y documentos',
+          extensions: SUPPORTED_EXTENSIONS.map((ext) => ext.slice(1))
+        }
+      ]
     })
     return result.canceled ? [] : result.filePaths
   })
@@ -362,6 +450,31 @@ function registerIpc(): void {
 
   ipcMain.handle('binaries:status', () => binaryStatus())
 
+  // --- Formatos por defecto (Ajustes → General; preselección en Convertir) ---
+  ipcMain.handle('defaults:get', () => defaultFormats())
+  ipcMain.handle('defaults:set', (_event, patch: unknown) => {
+    // Strings crudos: `saveDefaultFormats` valida contra los formatos soportados.
+    const clean: { image?: string | null; document?: string | null } = {}
+    if (patch && typeof patch === 'object') {
+      const data = patch as Record<string, unknown>
+      if ('image' in data) clean.image = typeof data.image === 'string' ? data.image : null
+      if ('document' in data)
+        clean.document = typeof data.document === 'string' ? data.document : null
+    }
+    return saveDefaultFormats(clean)
+  })
+
+  // Comportamiento de la ✕ de la ventana (Ajustes → General).
+  ipcMain.handle('close:get', () => closeBehavior())
+  ipcMain.handle('close:set', (_event, patch: unknown) => {
+    const clean: Partial<{ trayOnClose: boolean }> = {}
+    if (patch && typeof patch === 'object') {
+      const data = patch as Record<string, unknown>
+      if (typeof data.trayOnClose === 'boolean') clean.trayOnClose = data.trayOnClose
+    }
+    return saveCloseBehavior(clean)
+  })
+
   // --- Descarga integrada de motores (Ajustes → General) ---
   ipcMain.handle('engine:download', (_event, id: unknown) =>
     downloadEngine(typeof id === 'string' ? id : '')
@@ -393,15 +506,83 @@ function registerIpc(): void {
     setUpdaterEnabled(value === true)
   )
   ipcMain.handle('updater:install', () => installUpdate())
+
+  // --- Menú contextual del Explorador (parámetros + alta/baja en caliente) ---
+  ipcMain.handle('ctxmenu:status', () => ({
+    settings: contextMenuSettings(),
+    supported: process.platform === 'win32',
+    packaged: app.isPackaged
+  }))
+  ipcMain.handle('ctxmenu:set', async (_event, patch: unknown) => {
+    const clean: Partial<ContextMenuSettings> = {}
+    if (patch && typeof patch === 'object') {
+      const data = patch as Record<string, unknown>
+      if (typeof data.enabled === 'boolean') clean.enabled = data.enabled
+    }
+    const previous = contextMenuSettings()
+    const next = saveContextMenuSettings(clean)
+    // `enabled` gobierna las claves del Explorador → sincroniza en caliente.
+    if (!('enabled' in clean)) return next
+    try {
+      await syncContextMenu(next)
+      return next
+    } catch {
+      // Alta/baja fallida: revierte los ajustes y limpia claves parciales.
+      saveContextMenuSettings(previous)
+      await syncContextMenu(previous).catch(() => undefined)
+      throw new Error('REGISTRY_FAILED')
+    }
+  })
+
+  // Peticiones del menú contextual pendientes de consumo en el renderer
+  // (arranque en frío o eventos tempranos; ver emitCtxRequest).
+  ipcMain.handle('ctxmenu:drain', () => {
+    const requests = undrainedCtxRequests
+    undrainedCtxRequests = []
+    return requests
+  })
 }
 
 app.whenReady().then(() => {
+  if (!hasSingleInstanceLock) return // segunda instancia: ya salió arriba
+
+  // Activación desde el instalador (`--ctx-activate`): registra el menú sin
+  // abrir ventana y termina con el código de estado correspondiente.
+  if (process.argv.includes('--ctx-activate')) {
+    const previous = contextMenuSettings()
+    saveContextMenuSettings({ enabled: true })
+    syncContextMenu(contextMenuSettings())
+      .then(() => app.exit(0))
+      .catch((error) => {
+        console.error('[menú contextual] activación desde el instalador:', error)
+        saveContextMenuSettings(previous)
+        app.exit(1)
+      })
+    return
+  }
+
   registerIpc()
+  // Bandeja del sistema: el cierre de la ventana la oculta aquí (sin salir).
+  createTray()
+  // Menú contextual: si quedó activo, re-sincroniza las claves al arrancar
+  // (recuperación tras reinstalación/cambio de versión). No-op fuera de
+  // Windows empaquetado (§4.7 del plan).
+  syncContextMenu(contextMenuSettings()).catch((error) =>
+    console.error('[menú contextual] sync al arrancar:', error)
+  )
   // Splash primero: tapa la ventana oscura hasta que la interfaz esté lista.
   splashWindow = createSplashWindow()
   // Cierre de seguridad: si la app nunca termina de cargar, no bloqueamos.
   splashTimer = setTimeout(closeSplash, SPLASH_MAX_MS)
   createWindow()
+
+  // Petición en frío del menú contextual (§4.5): la ventana se trae al frente
+  // y el renderer la drenará al montar (buffer `undrainedCtxRequests`).
+  const coldRequest = parseContextArgv(process.argv)
+  if (coldRequest) {
+    enqueueContextRequest(coldRequest)
+    focusMainWindow()
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -413,6 +594,9 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   isQuitting = true
   closeSplash()
+  // La bandeja no debe sobrevivir al proceso (Windows la limpiaría tarde).
+  tray?.destroy()
+  tray = null
 })
 
 app.on('window-all-closed', () => {

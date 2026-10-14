@@ -1,4 +1,4 @@
-import { access, readdir } from 'fs/promises'
+import { readdir, stat } from 'fs/promises'
 import { join, sep } from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -27,7 +27,8 @@ const EXECUTABLE_NAMES: Record<string, string[]> = {
   pandoc: process.platform === 'win32' ? ['pandoc.exe', 'pandoc'] : ['pandoc'],
   magick: process.platform === 'win32' ? ['magick.exe', 'magick'] : ['magick'],
   gs: process.platform === 'win32' ? ['gswin64c.exe', 'gswin32c.exe', 'gs'] : ['gs'],
-  soffice: process.platform === 'win32' ? ['soffice.exe', 'soffice'] : ['soffice']
+  soffice: process.platform === 'win32' ? ['soffice.exe', 'soffice'] : ['soffice'],
+  wkhtmltopdf: process.platform === 'win32' ? ['wkhtmltopdf.exe', 'wkhtmltopdf'] : ['wkhtmltopdf']
 }
 
 /** Rutas conocidas de instalaciones habituales (solo informativas, se intentan tras PATH). */
@@ -41,13 +42,21 @@ const COMMON_INSTALL_PATHS: Record<string, string[]> = {
     : [],
   soffice: process.platform === 'win32'
     ? ['C:/Program Files/LibreOffice/program/soffice.exe']
-    : ['/usr/bin/soffice', '/Applications/LibreOffice.app/Contents/MacOS/soffice']
+    : ['/usr/bin/soffice', '/Applications/LibreOffice.app/Contents/MacOS/soffice'],
+  wkhtmltopdf: process.platform === 'win32'
+    ? ['C:/Program Files/wkhtmltopdf/bin/wkhtmltopdf.exe']
+    : ['/usr/bin/wkhtmltopdf']
 }
 
-async function exists(path: string): Promise<boolean> {
+/**
+ * ¿Es un fichero regular? Un nombre que existe pero es un DIRECTORIO no es un
+ * binario: `resources/bin/pandoc/` y `resources/bin/magick/` son carpetas de
+ * la distribución portátil, y devolverlas hacía que el spawn fallara con
+ * ENOENT (motor "Available" en Ajustes, conversión rota en producción).
+ */
+async function isFile(path: string): Promise<boolean> {
   try {
-    await access(path)
-    return true
+    return (await stat(path)).isFile()
   } catch {
     return false
   }
@@ -70,7 +79,7 @@ async function findBinaryInSubdirs(root: string, names: string[]): Promise<strin
     for (const dir of level) {
       for (const name of names) {
         const candidate = join(dir, name)
-        if (await exists(candidate)) return candidate
+        if (await isFile(candidate)) return candidate
       }
       let entries: import('fs').Dirent[] = []
       try {
@@ -103,14 +112,19 @@ export function invalidateBinary(tool?: string): void {
 
 /** Devuelve la ruta absoluta al binario o null si no está disponible. */
 export async function findBinary(tool: keyof typeof EXECUTABLE_NAMES): Promise<string | null> {
-  if (cache.has(tool)) return cache.get(tool) ?? null
+  if (cache.has(tool)) {
+    const cached = cache.get(tool) ?? null
+    // Revalida: el usuario puede borrar un motor con la app abierta.
+    if (!cached || (await isFile(cached))) return cached
+    cache.delete(tool)
+  }
 
   const names = EXECUTABLE_NAMES[tool] ?? [tool]
 
   // 1) resources/bin empaquetado.
   for (const name of names) {
     const candidate = join(APP_ROOT, name)
-    if (await exists(candidate)) {
+    if (await isFile(candidate)) {
       cache.set(tool, candidate)
       return candidate
     }
@@ -130,7 +144,7 @@ export async function findBinary(tool: keyof typeof EXECUTABLE_NAMES): Promise<s
     try {
       const { stdout } = await execFileAsync(probe, [name])
       const found = stdout.split(/\r?\n/).map((l) => l.trim()).find(Boolean)
-      if (found && (await exists(found))) {
+      if (found && (await isFile(found))) {
         cache.set(tool, found)
         return found
       }
@@ -141,7 +155,7 @@ export async function findBinary(tool: keyof typeof EXECUTABLE_NAMES): Promise<s
 
   // 3) Rutas de instalación comunes conocidas.
   for (const path of COMMON_INSTALL_PATHS[tool] ?? []) {
-    if (await exists(path)) {
+    if (await isFile(path)) {
       cache.set(tool, path)
       return path
     }
@@ -153,11 +167,18 @@ export async function findBinary(tool: keyof typeof EXECUTABLE_NAMES): Promise<s
 
 /** Estado de todos los motores externos, para mostrarlo en Ajustes. */
 export async function binaryStatus(): Promise<Record<string, boolean>> {
-  const [pandoc, magick, gs, soffice] = await Promise.all([
+  const [pandoc, magick, gs, soffice, wkhtmltopdf] = await Promise.all([
     findBinary('pandoc'),
     findBinary('magick'),
     findBinary('gs'),
-    findBinary('soffice')
+    findBinary('soffice'),
+    findBinary('wkhtmltopdf')
   ])
-  return { pandoc: !!pandoc, magick: !!magick, gs: !!gs, soffice: !!soffice }
+  return {
+    pandoc: !!pandoc,
+    magick: !!magick,
+    gs: !!gs,
+    soffice: !!soffice,
+    wkhtmltopdf: !!wkhtmltopdf
+  }
 }

@@ -238,6 +238,18 @@ export async function availableImageTargets(inputPath: string): Promise<ImageFor
   return targets
 }
 
+/**
+ * Destinos escribibles según los motores presentes, en el orden canónico del
+ * submenú del menú contextual del Explorador (Fase B de MenuContextual.md):
+ * los que codifica sharp más bmp/ico si hay ImageMagick. Sin `magick` esas
+ * hojas simplemente no se registran (degradación elegante).
+ */
+export function writableImageTargets(hasMagick: boolean): ImageFormat[] {
+  return IMAGE_FORMATS.filter(
+    (format) => SHARP_OUTPUT.has(format) || (hasMagick && MAGICK_OUTPUT.has(format))
+  )
+}
+
 /** Convierte una imagen al formato indicado y devuelve el resultado. */
 export async function convertImage(options: ConvertImageOptions): Promise<ConvertImageResult> {
   const { inputPath, targetFormat, quality = 80, outputDir } = options

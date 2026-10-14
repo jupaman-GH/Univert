@@ -5,15 +5,15 @@ export type Language = 'es' | 'en'
 const dictionaries: Record<Language, Record<string, string>> = {
   es: {
     // Navegación
-    'nav.images': 'Imágenes',
-    'nav.documents': 'Documentos',
-    'nav.batches': 'Lotes',
+    'nav.convert': 'Convertir',
     'nav.settings': 'Ajustes',
-    'section.images.desc': 'Convertir imágenes entre formatos raster y vectoriales.',
-    'section.documents.desc': 'Convertir documentos entre formatos de texto y oficina.',
-    'section.batches.desc': 'Conversión por lotes con un formato por archivo o uno común.',
-    'section.settings.desc': 'Preferencias de la aplicación.',
-    'section.pending': 'Sección en preparación para las fases siguientes.',
+    // Sección única de conversión (imágenes y documentos, sin discriminar)
+    'convert.files': 'Archivos',
+    'convert.drop': 'Arrastra archivos aquí o haz clic para elegir',
+    'convert.formats':
+      'Imágenes (PNG, JPEG, WebP, AVIF, TIFF, GIF…) y documentos (PDF, DOCX, ODT, RTF, TXT, Markdown, HTML, EPUB)',
+    'convert.noTargets': 'Sin formatos disponibles',
+    'convert.noCommon': 'Sin formato común: usa «Formato por archivo».',
     // Titlebar
     'window.minimize': 'Minimizar',
     'window.maximize': 'Maximizar',
@@ -87,6 +87,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'settings.engine.pandoc': 'Pandoc — documentos de texto/marcado (DOCX, ODT, MD, HTML, RTF, EPUB)',
     'settings.engine.magick': 'ImageMagick — formatos raros de imagen (HEIC, RAW, ICO)',
     'settings.engine.gs': 'Ghostscript — PDF → imagen (EPS, AI)',
+    'settings.engine.wkhtmltopdf':
+      'Motor PDF (wkhtmltopdf) — habilita «Convertir a PDF» desde cualquier documento',
     'settings.engine.soffice': 'LibreOffice — ofimática completa (XLSX, PPTX, PDF con formato)',
     'settings.available': 'Disponible',
     'settings.notInstalled': 'No instalado',
@@ -98,6 +100,23 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'settings.binNote2': '; también puedes colocarlos manualmente (ver su README). Se detectan al reiniciar.',
     'settings.language': 'Idioma',
     'settings.language.desc': 'Idioma de la interfaz de la aplicación.',
+    // Formatos por defecto (preselección en Convertir y menú contextual)
+    'settings.defaults': 'Formatos por defecto',
+    'settings.defaults.desc':
+      'Se preseleccionan al convertir archivos agregados en «Convertir», incluidos los que llegan desde el menú contextual del Explorador.',
+    'settings.defaults.image': 'Formato por defecto de imagen',
+    'settings.defaults.document': 'Formato por defecto de documento',
+    'settings.defaults.auto': 'Primera opción disponible',
+    'settings.defaults.error': 'No se pudieron guardar los formatos por defecto',
+    // Comportamiento de la ✕ de la ventana
+    'settings.close': 'Al cerrar la ventana (✕)',
+    'settings.close.desc':
+      'Elige si la ✕ oculta Univert en la bandeja del sistema (queda en segundo plano) o cierra la aplicación.',
+    'settings.close.tray': 'Ocultar en la bandeja del sistema',
+    'settings.close.exit': 'Cerrar la aplicación',
+    // Aviso de actualización en la UI principal
+    'update.downloading': 'Descargando actualización',
+    'update.ready': 'Actualización lista para instalar ({version}) — reinicia desde Ajustes',
     'settings.window': 'Ventana',
     'settings.window.desc': 'Los cambios se aplican en vivo a la ventana principal.',
     'settings.transparency': 'Transparencia',
@@ -125,6 +144,26 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'settings.update.error': 'No se pudo comprobar; se reintentará más tarde.',
     'settings.update.inactive.dev': 'Solo disponible en la versión empaquetada.',
     'settings.update.inactive.disabled': 'Comprobaciones desactivadas.',
+    // Menú contextual del Explorador (MenuContextual.md)
+    'settings.ctxMenu': 'Menú contextual del Explorador',
+    'settings.ctxMenu.desc':
+      'Añade «Convertir con Univert» al hacer clic derecho sobre imágenes o documentos compatibles en el Explorador; abre la aplicación con los archivos cargados para elegir el formato.',
+    'settings.ctxMenu.enable': 'Activar menú contextual',
+    'settings.ctxMenu.enable.note':
+      'Aparece en el Explorador tras activarlo; en Windows 11, bajo «Mostrar más opciones».',
+    'settings.ctxMenu.enable.note.dev':
+      'Disponible solo en la versión instalada (el menú apunta al ejecutable empaquetado).',
+    'settings.ctxMenu.quality': 'Calidad de conversión',
+    'settings.ctxMenu.quality.note':
+      'Calidad usada al convertir imágenes desde el menú contextual; los documentos no usan calidad.',
+    'settings.ctxMenu.showBatch': 'Mostrar «Convertir por lotes…»',
+    'settings.ctxMenu.showBatch.note':
+      'Abre la aplicación en la sección Lotes con los archivos seleccionados.',
+    'settings.ctxMenu.error': 'No se pudieron guardar los parámetros del menú contextual',
+    'settings.ctxMenu.error.register':
+      'No se pudo registrar el menú en el Explorador; se mantiene la configuración anterior',
+    'settings.ctxMenu.applying': 'Aplicando menú contextual…',
+    'settings.ctxMenu.removing': 'Eliminando menú contextual…',
     'settings.restore': 'Restaurar valores predeterminados',
     // Presets de color
     'preset.graphite': 'Grafito',
@@ -139,15 +178,14 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'preset.green': 'Verde'
   },
   en: {
-    'nav.images': 'Images',
-    'nav.documents': 'Documents',
-    'nav.batches': 'Batches',
+    'nav.convert': 'Convert',
     'nav.settings': 'Settings',
-    'section.images.desc': 'Convert images between raster and vector formats.',
-    'section.documents.desc': 'Convert documents between text and office formats.',
-    'section.batches.desc': 'Batch conversion with a per-file or single shared format.',
-    'section.settings.desc': 'Application preferences.',
-    'section.pending': 'Section coming in the next phases.',
+    'convert.files': 'Files',
+    'convert.drop': 'Drag files here or click to choose',
+    'convert.formats':
+      'Images (PNG, JPEG, WebP, AVIF, TIFF, GIF…) and documents (PDF, DOCX, ODT, RTF, TXT, Markdown, HTML, EPUB)',
+    'convert.noTargets': 'No formats available',
+    'convert.noCommon': 'No shared format: use “Format per file”.',
     'window.minimize': 'Minimize',
     'window.maximize': 'Maximize',
     'window.close': 'Close',
@@ -216,6 +254,8 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'settings.engine.pandoc': 'Pandoc — text/markup documents (DOCX, ODT, MD, HTML, RTF, EPUB)',
     'settings.engine.magick': 'ImageMagick — rare image formats (HEIC, RAW, ICO)',
     'settings.engine.gs': 'Ghostscript — PDF → image (EPS, AI)',
+    'settings.engine.wkhtmltopdf':
+      'PDF engine (wkhtmltopdf) — enables “Convert to PDF” from any document',
     'settings.engine.soffice': 'LibreOffice — full office suite (XLSX, PPTX, formatted PDF)',
     'settings.available': 'Available',
     'settings.notInstalled': 'Not installed',
@@ -227,6 +267,20 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'settings.binNote2': '; you can also place executables manually (see their README). They are detected after restart.',
     'settings.language': 'Language',
     'settings.language.desc': 'Language of the application interface.',
+    'settings.defaults': 'Default formats',
+    'settings.defaults.desc':
+      'Preselected when converting files added under “Convert”, including files opened from the Windows Explorer context menu.',
+    'settings.defaults.image': 'Default image format',
+    'settings.defaults.document': 'Default document format',
+    'settings.defaults.auto': 'First available option',
+    'settings.defaults.error': 'Could not save the default formats',
+    'settings.close': 'When closing the window (✕)',
+    'settings.close.desc':
+      'Choose whether ✕ hides Univert in the system tray (stays in the background) or quits the application.',
+    'settings.close.tray': 'Minimize to system tray',
+    'settings.close.exit': 'Quit the application',
+    'update.downloading': 'Downloading update',
+    'update.ready': 'Update ready to install ({version}) — restart from Settings',
     'settings.window': 'Window',
     'settings.window.desc': 'Changes apply live to the main window.',
     'settings.transparency': 'Transparency',
@@ -254,6 +308,25 @@ const dictionaries: Record<Language, Record<string, string>> = {
     'settings.update.error': 'Could not check for updates; will retry later.',
     'settings.update.inactive.dev': 'Only available in the packaged version.',
     'settings.update.inactive.disabled': 'Checks disabled.',
+    'settings.ctxMenu': 'Explorer context menu',
+    'settings.ctxMenu.desc':
+      'Adds “Convert with Univert” when right-clicking compatible images or documents in Windows Explorer; the app opens with the files loaded so you can pick the format.',
+    'settings.ctxMenu.enable': 'Enable context menu',
+    'settings.ctxMenu.enable.note':
+      'Appears in Explorer once enabled; on Windows 11, under “Show more options”.',
+    'settings.ctxMenu.enable.note.dev':
+      'Only available in the installed version (the menu points at the packaged executable).',
+    'settings.ctxMenu.quality': 'Conversion quality',
+    'settings.ctxMenu.quality.note':
+      'Quality used when converting images from the context menu; documents do not use quality.',
+    'settings.ctxMenu.showBatch': 'Show “Convert to batch…”',
+    'settings.ctxMenu.showBatch.note':
+      'Opens the app in the Batches section with the selected files loaded.',
+    'settings.ctxMenu.error': 'Could not save the context menu settings',
+    'settings.ctxMenu.error.register':
+      'Could not register the menu in Explorer; previous settings were kept',
+    'settings.ctxMenu.applying': 'Applying context menu…',
+    'settings.ctxMenu.removing': 'Removing context menu…',
     'settings.restore': 'Restore defaults',
     'preset.graphite': 'Graphite',
     'preset.indigo': 'Indigo',

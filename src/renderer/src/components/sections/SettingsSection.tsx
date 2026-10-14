@@ -1,7 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Cpu, Languages, Palette, RefreshCw, RotateCcw } from 'lucide-react'
-import type { EngineProgress, UpdaterState } from '@shared/types'
+import {
+  Cpu,
+  ImageIcon,
+  Languages,
+  MousePointerClick,
+  Palette,
+  RefreshCw,
+  RotateCcw
+} from 'lucide-react'
+import {
+  DOCUMENT_FORMATS,
+  IMAGE_FORMATS,
+  type ContextMenuSettings,
+  type ContextMenuStatus,
+  type DefaultFormats,
+  type DocumentFormat,
+  type EngineProgress,
+  type ImageFormat,
+  type UpdaterState
+} from '@shared/types'
 import { useAppearance } from '@/components/AppearanceContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
 import { Slider } from '@/components/ui/slider'
+import { Spinner } from '@/components/ui/spinner'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useI18n, type Language } from '@/i18n'
@@ -36,6 +55,7 @@ const ENGINES: Record<string, { labelKey: string }> = {
   pandoc: { labelKey: 'settings.engine.pandoc' },
   magick: { labelKey: 'settings.engine.magick' },
   gs: { labelKey: 'settings.engine.gs' },
+  wkhtmltopdf: { labelKey: 'settings.engine.wkhtmltopdf' },
   soffice: { labelKey: 'settings.engine.soffice' }
 }
 
@@ -109,6 +129,78 @@ export function SettingsSection(): React.JSX.Element {
 
   const [updateState, setUpdateState] = useState<UpdaterState | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
+
+  // Menú contextual (Fase A): parámetros persistidos en el proceso main.
+  // null mientras carga; si la plataforma no es soportada, la tarjeta no se pinta.
+  const [ctx, setCtx] = useState<ContextMenuStatus | null>(null)
+
+  /** Aplicando/eliminando las claves: la app queda cubierta por un overlay animado. */
+  const [ctxSyncing, setCtxSyncing] = useState<'applying' | 'removing' | null>(null)
+
+  // Comportamiento de la ✕ de la ventana: bandeja (por defecto) o cierre real.
+  // Persistido en el proceso main (close-behavior.json).
+  const [closeToTray, setCloseToTray] = useState<boolean | null>(null)
+  const updateCloseBehavior = useCallback((trayOnClose: boolean) => {
+    setCloseToTray(trayOnClose)
+    void window.api.behavior.set({ trayOnClose }).catch(() => undefined)
+  }, [])
+
+  // Formatos por defecto (imagen/documento): preselección en Convertir y al
+  // abrir archivos desde el menú contextual. Persistidos en el proceso main.
+  const [defaults, setDefaults] = useState<DefaultFormats | null>(null)
+  const updateDefaults = useCallback(
+    (patch: Partial<DefaultFormats>) => {
+      void window.api.defaults
+        .set(patch)
+        .then(setDefaults)
+        .catch(() => toast.error(t('settings.defaults.error')))
+    },
+    [t]
+  )
+
+  useEffect(() => {
+    void window.api.ctxmenu
+      .status()
+      .then(setCtx)
+      .catch(() => setCtx(null))
+    void window.api.defaults
+      .get()
+      .then(setDefaults)
+      .catch(() => undefined)
+    void window.api.behavior
+      .get()
+      .then((behavior) => setCloseToTray(behavior.trayOnClose))
+      .catch(() => undefined)
+  }, [])
+
+  /** Persiste un parche de parámetros y refleja el estado resultante del main. */
+  const updateCtx = useCallback(
+    (patch: Partial<ContextMenuSettings>) => {
+      // El registro/borrado de claves tarda unos segundos: se cubre la app con
+      // el overlay «Aplicando/Eliminando menú contextual» hasta que termina.
+      if ('enabled' in patch) {
+        setCtxSyncing(patch.enabled === false ? 'removing' : 'applying')
+      }
+      void window.api.ctxmenu
+        .set(patch)
+        .then((settings) => setCtx((prev) => (prev ? { ...prev, settings } : prev)))
+        .catch((error: unknown) => {
+          // El main revierte los ajustes si el registro en el Explorador
+          // falla (Fase B): se recupera el estado real y se avisa distinto.
+          const registryFailed =
+            error instanceof Error && error.message.includes('REGISTRY_FAILED')
+          toast.error(
+            t(registryFailed ? 'settings.ctxMenu.error.register' : 'settings.ctxMenu.error')
+          )
+          void window.api.ctxmenu
+            .status()
+            .then(setCtx)
+            .catch(() => undefined)
+        })
+        .finally(() => setCtxSyncing(null))
+    },
+    [t]
+  )
   /** Último estado visto, para avisar una sola vez al terminar la descarga. */
   const lastUpdateStatus = useRef<string | null>(null)
   const notifiedVersion = useRef<string | null>(null)
@@ -179,7 +271,8 @@ export function SettingsSection(): React.JSX.Element {
   })()
 
   return (
-    // General es la pestaña inicial; Apariencia va después.
+    <>
+    {/* General es la pestaña inicial; Apariencia va después. */}
     <Tabs defaultValue="general" className="flex flex-col gap-4">
       <TabsList>
         <TabsTrigger value="general">
@@ -210,6 +303,84 @@ export function SettingsSection(): React.JSX.Element {
               <SelectContent>
                 <SelectItem value="es">Español</SelectItem>
                 <SelectItem value="en">English</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ImageIcon className="h-4 w-4" />
+              {t('settings.defaults')}
+            </CardTitle>
+            <CardDescription>{t('settings.defaults.desc')}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <Label>{t('settings.defaults.image')}</Label>
+              <Select
+                value={defaults?.image ?? 'auto'}
+                onValueChange={(v) =>
+                  updateDefaults({ image: v === 'auto' ? null : (v as ImageFormat) })
+                }
+              >
+                <SelectTrigger className="w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">{t('settings.defaults.auto')}</SelectItem>
+                  {IMAGE_FORMATS.map((format) => (
+                    <SelectItem key={format} value={format}>
+                      {format.toUpperCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <Label>{t('settings.defaults.document')}</Label>
+              <Select
+                value={defaults?.document ?? 'auto'}
+                onValueChange={(v) =>
+                  updateDefaults({ document: v === 'auto' ? null : (v as DocumentFormat) })
+                }
+              >
+                <SelectTrigger className="w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">{t('settings.defaults.auto')}</SelectItem>
+                  {DOCUMENT_FORMATS.map((format) => (
+                    <SelectItem key={format} value={format}>
+                      {format.toUpperCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/60 bg-card/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MousePointerClick className="h-4 w-4" />
+              {t('settings.close')}
+            </CardTitle>
+            <CardDescription>{t('settings.close.desc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select
+              value={closeToTray === null ? undefined : closeToTray ? 'tray' : 'exit'}
+              onValueChange={(v) => updateCloseBehavior(v === 'tray')}
+            >
+              <SelectTrigger className="w-72">
+                <SelectValue placeholder="…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tray">{t('settings.close.tray')}</SelectItem>
+                <SelectItem value="exit">{t('settings.close.exit')}</SelectItem>
               </SelectContent>
             </Select>
           </CardContent>
@@ -341,6 +512,37 @@ export function SettingsSection(): React.JSX.Element {
             </p>
           </CardContent>
         </Card>
+
+        {/* Menú contextual del Explorador (solo Windows; ver MenuContextual.md). */}
+        {ctx?.supported && (
+          <Card className="border-border/60 bg-card/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MousePointerClick className="h-4 w-4" />
+                {t('settings.ctxMenu')}
+              </CardTitle>
+              <CardDescription>{t('settings.ctxMenu.desc')}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="ctx-menu-enable">{t('settings.ctxMenu.enable')}</Label>
+                  <p className="text-xs text-muted-foreground">
+                    {ctx.packaged
+                      ? t('settings.ctxMenu.enable.note')
+                      : t('settings.ctxMenu.enable.note.dev')}
+                  </p>
+                </div>
+                <Switch
+                  id="ctx-menu-enable"
+                  checked={ctx.settings.enabled}
+                  disabled={!ctx.packaged}
+                  onCheckedChange={(checked) => updateCtx({ enabled: checked })}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </TabsContent>
 
       {/* APARIENCIA */}
@@ -446,5 +648,25 @@ export function SettingsSection(): React.JSX.Element {
         </Card>
       </TabsContent>
     </Tabs>
+
+      {/* Overlay animado mientras el main aplica/borra las claves (solo unos
+          segundos; bloquea la interacción con toda la app). */}
+      {ctxSyncing && (
+        <div
+          role="status"
+          aria-busy="true"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background/70 backdrop-blur-sm"
+        >
+          <Spinner className="h-8 w-8" />
+          <p className="animate-pulse text-sm text-foreground">
+            {t(
+              ctxSyncing === 'removing'
+                ? 'settings.ctxMenu.removing'
+                : 'settings.ctxMenu.applying'
+            )}
+          </p>
+        </div>
+      )}
+    </>
   )
 }

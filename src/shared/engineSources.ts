@@ -12,7 +12,7 @@
  * archivos y el instalador de LibreOffice caben sin problemas.
  */
 
-export type EngineId = 'pandoc' | 'magick' | 'gs' | 'soffice'
+export type EngineId = 'pandoc' | 'magick' | 'gs' | 'soffice' | 'wkhtmltopdf'
 
 export type EngineSource = {
   /** Nombre del asset en la release (fijo entre versiones). */
@@ -51,7 +51,12 @@ export const ENGINE_SOURCES: Record<EngineId, EngineSource> = {
   // LibreOffice no tiene forma portátil oficial razonable (~350 MB); se instala
   // en silencio. Windows pedirá una sola confirmación UAC (instalación en
   // Program Files), que es un límite del sistema operativo.
-  soffice: { fileName: 'libreoffice.msi', kind: 'msi' }
+  soffice: { fileName: 'libreoffice.msi', kind: 'msi' },
+  // Motor PDF: wkhtmltopdf 0.12.6 (build mxe-cross oficial reempaquetado como
+  // zip con solo bin/wkhtmltopdf.exe + wkhtmltox.dll, ~32 MB). Habilita
+  // «Convertir a PDF» (Pandoc compone HTML; wkhtmltopdf lo rinde a PDF).
+  // Zip extraído sin administrador a resources/bin/wkhtmltopdf/bin/.
+  wkhtmltopdf: { fileName: 'wkhtmltopdf.zip', kind: 'archive' }
 }
 
 /** URL directa de descarga del asset de un motor. */
