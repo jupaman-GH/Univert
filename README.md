@@ -1,61 +1,87 @@
+<p align="center">
+<img src="Assets/UnivertLogo.png" width="500" alt="UNIVERT">
+</p>
+
 # Universal Converter
 
-Conversor universal de imágenes y documentos de escritorio. Frontend en React +
-Electron; conversiones locales empaquetadas, sin requerir software de terceros
-instalado para los formatos principales.
+English | [Español](README.es.md)
 
-## Funcionalidad
+Desktop universal image and document converter. React + Electron frontend;
+conversions run locally, bundled with the app — no third-party software
+required for the main formats.
 
-- **Secciones separadas** para Imágenes y Documentos; cada una solo acepta su tipo.
-- **Drag & drop global**: suelta un archivo en cualquier punto y la app detecta su
-  tipo y navega a la sección adecuada.
-- Muestra la **ruta origen** y convierte **por defecto junto al archivo**, con opción
-  de un directorio de salida distinto.
-- **Calidad 0–100%** en los formatos que la admiten.
-- **Conversión por lotes** con dos modalidades: un formato para todos, o un formato
-  por archivo. El tipo (imágenes/documentos) se declara antes de agregar.
-- Entorno gráfico oscuro con animaciones, y ajuste en vivo de **transparencia, color
-  y blur** de la ventana.
+## Features
 
-## Desarrollo
+- **One unified Convert section** for images *and* documents: add 1 or N files
+  (even mixed) and convert them in one go, with a **format per file**.
+- **Convert to PDF**: any text/markup or office document (MD, HTML, TXT, RTF,
+  DOCX, ODT, EPUB) can be converted **to PDF** with the optional **PDF engine**
+  (~32 MB self-download from Settings, no admin rights).
+- **Windows Explorer context menu**: “Convert with Univert” on compatible
+  images and documents; multi-selections are merged into a single window with
+  the **default formats** preselected.
+- **Default formats** (image and document) in Settings: preselected whenever
+  files are added to convert, including from the context menu.
+- **Global drag & drop**, source path shown, conversion **next to the source
+  file by default** with the option of a different output directory, and
+  **quality 0–100%** where supported.
+- **Close behavior**: the ✕ hides Univert in the **system tray** (default) or
+  quits the app — your choice in Settings.
+- **Automatic updates** from GitHub Releases with an in-app **download bar**
+  shown over the version label.
+- Dark-themed UI with animations and live **transparency, color and blur**
+  adjustment.
+
+## Engines: what's included and what you can add yourself
+
+Everything in the format matrix below works out of the box for the main
+formats. Extra coverage is an **optional self-download** from
+**Settings → Conversion engines** (progress bar included, applied without
+restarting):
+
+| Engine | Enables | Availability |
+|---|---|---|
+| Pandoc | MD, HTML, TXT, RTF, DOCX, ODT, EPUB conversions | **Bundled** in the installer |
+| ImageMagick | Rare image formats (HEIC, RAW, ICO, PSD) | **Bundled** |
+| Ghostscript | PDF → PNG (page rasterization) | Optional download (~30 MB) |
+| **PDF engine (wkhtmltopdf)** | **“Convert to PDF” from any document** | Optional download (~32 MB, no admin) |
+| LibreOffice | Full office suite (XLSX, PPTX, formatted PDF) | Optional download (~350 MB, one UAC prompt) |
+
+If an engine is missing, the affected conversion either **doesn't offer that
+target** or returns a clear `MOTOR_MISSING` error, and the rest of the app
+keeps working. Settings shows the live status of every engine.
+
+## Development
 
 ```bash
 npm install
-npm run dev        # arranca con HMR
-npm run build      # compila main/preload/renderer a out/
-npm run typecheck  # tsc en main/preload y renderer
+npm run dev        # starts with HMR
+npm run build      # compiles main/preload/renderer to out/
+npm run typecheck  # tsc for main/preload and renderer
 ```
 
-### Verificaciones del motor
+### Engine checks
 
 ```bash
-npm run verify:images   # matriz de conversión de imágenes, dimensiones, calidad, rutas
-npm run verify:docs     # operaciones PDF (unir/partir) y degradación de motores
+npm run verify:images   # image conversion matrix, dimensions, quality, routes
+npm run verify:docs     # PDF operations, document→PDF and engine degradation
+npm run verify:batch    # batch queue, per-file formats, cancellation
+npm run verify:ctxmenu  # Explorer context menu plan, hot sync, argv parsing
 ```
 
-### Empaquetar (Windows)
+### Packaging (Windows)
 
 ```bash
-npm run dist:win
+npm run dist:win   # NSIS installer + portable + zip
 ```
 
-## Actualizaciones y donaciones
+## Format matrix (real, verified)
 
-- La app busca nuevas versiones en las **GitHub Releases** y las instala desde
-  Ajustes → Actualizaciones (descarga en segundo plano, aviso al terminar).
-- [docs/RELEASE.md](docs/RELEASE.md) — cómo publicar una versión.
-- [docs/SETUP-NEW-APP.md](docs/SETUP-NEW-APP.md) — replicar el modelo en cada
-  software nuevo de la organización.
-- [docs/DONACIONES.md](docs/DONACIONES.md) — plataformas de donación
-  recomendadas desde Argentina (GitHub Sponsors + Mercado Pago + Ko-fi).
+`npm run verify:images` validates the images column on every build.
 
-## Matriz de formatos (real, verificada)
+### Images — `sharp`/`resvg` engine, bundled with the app (no external binaries)
 
-`npm run verify:images` valida la columna de imágenes en cada build.
-
-### Imágenes — motor `sharp`/`resvg`, incluido en la app (sin binarios)
-
-| Origen ↓ / Destino → | PNG | JPEG | WebP | AVIF | TIFF | GIF | BMP |
+| Source ↓ / Target → | PNG | JPEG | WebP | AVIF | TIFF | GIF | BMP |
 |---|---|---|---|---|---|---|---|
 | PNG | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | JPEG | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -66,53 +92,64 @@ npm run dist:win
 | BMP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
 | SVG | ✓ (resvg) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
-- **Calidad 0–100%** aplicable en PNG, JPEG, WebP, AVIF, TIFF y GIF (se oculta el
-  slider en BMP, sin parámetro de calidad).
-- **SVG** se rasteriza con `resvg` (WASM/Rust, sin binarios del sistema). SVG como
-  formato de *salida* vectorial no está soportado en esta fase (limitación
-  documentada; requiere un trazador vectorial).
+- **Quality 0–100%** applies to PNG, JPEG, WebP, AVIF, TIFF and GIF (the slider
+  is hidden for BMP, which has no quality parameter).
+- **SVG** is rasterized with `resvg` (WASM/Rust, no system binaries). SVG as a
+  vector *output* format is not supported in this phase (documented limitation;
+  it requires a vector tracer).
 
-### Imágenes raras — requieren ImageMagick (binario opcional, Fase 6)
+### Rare images — ImageMagick (bundled)
 
-HEIC/HEIF, RAW (CR2/NEF/DNG), ICO, PSD. Sin el binario, la app responde
-`UNSUPPORTED_FORMAT` y la UI lo indica. Ver `resources/bin/README.md`.
+HEIC/HEIF, RAW (CR2/NEF/DNG), ICO, PSD. See `resources/bin/README.md`.
 
-### Documentos
+### Documents
 
-| Operación | Motor | Incluido sin instalar nada |
+| Operation | Engine | Availability |
 |---|---|---|
-| Unir PDF | `pdf-lib` | **Sí** |
-| Partir PDF | `pdf-lib` | **Sí** |
-| MD ↔ HTML ↔ TXT ↔ RTF ↔ DOCX ↔ ODT ↔ EPUB | Pandoc | No (binario opcional) |
-| PDF → imagen (PNG) | Ghostscript | No (binario opcional) |
-| XLSX, PPTX, PDF con formato | LibreOffice headless | No (binario opcional, Fase 7) |
+| Merge PDF | `pdf-lib` | **Included** (no install needed) |
+| Split PDF | `pdf-lib` | **Included** (no install needed) |
+| MD ↔ HTML ↔ TXT ↔ RTF ↔ DOCX ↔ ODT ↔ EPUB | Pandoc | **Bundled** |
+| **Any of the above → PDF** | Pandoc + **PDF engine (wkhtmltopdf)** | Optional download (Settings) |
+| PDF → PNG (rasterize pages) | Ghostscript | Optional download (Settings) |
+| XLSX, PPTX, formatted PDF | LibreOffice headless | Optional download (Settings) |
 
-Si falta un motor, la conversión afectada devuelve un error claro
-(`MOTOR_MISSING`) y el resto de la app sigue funcionando. En **Ajustes** se muestra
-el estado de cada motor.
+## Architecture
 
-## Arquitectura
+- `src/main/` — Electron main process: window, tray, IPC and engines
+  (`imageConverter.ts`, `docConverter.ts`, `batchProcessor.ts`, `binaries.ts`,
+  `engineInstaller.ts`, `contextMenu.ts`).
+- `src/preload/` — typed `contextBridge` bridge exposing `window.api`.
+- `src/renderer/` — React UI (Convert and Settings sections).
+- `src/shared/` — types shared across the three processes.
 
-- `src/main/` — proceso principal de Electron: ventana, IPC y motores
-  (`imageConverter.ts`, `docConverter.ts`, `batchProcessor.ts`, `binaries.ts`).
-- `src/preload/` — puente `contextBridge` con `window.api` tipado.
-- `src/renderer/` — UI React (secciones Imágenes, Documentos, Lotes, Ajustes).
-- `src/shared/` — tipos compartidos entre los tres procesos.
+All conversion runs in the **main process**; the renderer only talks over IPC.
+External binaries are executed as child processes with `execFile` (no shell)
+and timeouts.
 
-Toda conversión corre en el **proceso main**; el renderer solo habla por IPC. Los
-binarios externos se ejecutan como procesos hijo con `execFile` (sin shell) y
-límites de tiempo.
+## Updates and donations
 
-## Limitaciones conocidas
+- The app checks for new versions on **GitHub Releases** and installs them from
+  Settings → Updates (background download, in-app progress bar and notification
+  when ready).
+- [docs/RELEASE.md](docs/RELEASE.md) — how to publish a version.
+- [docs/SETUP-NEW-APP.md](docs/SETUP-NEW-APP.md) — how to replicate the model in
+  each new software project of the organization.
+- [docs/DONACIONES.md](docs/DONACIONES.md) — recommended donation platforms from
+  Argentina (GitHub Sponsors + Mercado Pago + Ko-fi).
 
-- SVG como salida vectorial no soportado (solo rasterización de entrada).
-- El blur de ventana usa `backdrop-filter` sobre el contenido de la app; Windows no
-  permite desenfocar el escritorio detrás de la ventana sin técnicas nativas.
-- El soporte real de HEIC/RAW/AI depende del build de ImageMagick que se empaquete.
+## Donations
 
-## Licencias de binarios redistribuidos
+I am developing several more pieces of software that try to make everyone's
+daily life easier. Every software under development will be free. Donating is
+the real way for every coin the developer receives to be because they truly
+deserve it, given voluntarily. THANK YOU!
 
-Si empaquetas los binarios opcionales en `resources/bin`, incluye sus licencias:
+[![ko-fi](Assets/logomarkLogo.Png)](https://ko-fi.com/friezasama) BUY ME A COFFEE
 
-- ImageMagick: https://imagemagick.org/license/ (requiere atribución).
-- Pandoc: GPL-2. Ghostscript: AGPL. LibreOffice: MPL-2.0.
+## Redistributed binary licenses
+
+If you package the optional binaries in `resources/bin`, include their
+licenses:
+
+- ImageMagick: https://imagemagick.org/license/ (attribution required).
+- Pandoc: GPL-2. Ghostscript: AGPL. LibreOffice: MPL-2.0. wkhtmltopdf: LGPL-3.
